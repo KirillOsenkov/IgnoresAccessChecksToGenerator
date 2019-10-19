@@ -8,18 +8,40 @@
   
   <UsingTask AssemblyFile="$(_IACTG_TaskAssembly)" TaskName="IgnoresAccessChecksToGenerator.Tasks.PublicizeInternals" />
 
-  <Target Name="IgnoresAccessChecksToGenerator" AfterTargets="AfterResolveReferences">
+  <Target Name="IgnoresAccessChecksToGenerator" AfterTargets="ResolveReferences">
+    <PropertyGroup>
+      <_IACTG_UseReferenceAssemblies>true</_IACTG_UseReferenceAssemblies>
+      <_IACTG_UseReferenceAssemblies Condition="'$(CompileUsingReferenceAssemblies)' == 'false'">false</_IACTG_UseReferenceAssemblies>
+      <_CompileTargetNameForLocalType>_CompileTemporaryAssemblyWithIgnoreAccessChecks</_CompileTargetNameForLocalType>
+    </PropertyGroup>
+
     <PublicizeInternals 
       SourceReferences="@(ReferencePath)" 
       AssemblyNames="$(InternalsAssemblyNames)" 
-      UseReferenceAssemblies="$(CompileUsingReferenceAssemblies)"
+      UseReferenceAssemblies="$(_IACTG_UseReferenceAssemblies)"
       OutputPath="$(IntermediateOutputPath)">
-      <Output ItemName="ReferencePath" TaskParameter="TargetReferences" />
+      <Output ItemName="_IACTG_TargetReferences" TaskParameter="TargetReferences" />
       <Output ItemName="_IACTG_RemovedReferences" TaskParameter="RemovedReferences" />
       <Output ItemName="Compile" TaskParameter="GeneratedCodeFiles" />
     </PublicizeInternals>
+
+  </Target>
+
+  <Target Name="IgnoresAccessChecks_BeforeMarkupCompilePass1" BeforeTargets="CoreCompile" >
+
     <ItemGroup>
       <ReferencePath Remove="@(_IACTG_RemovedReferences)" />
+      <ReferencePath Include="@(_IACTG_TargetReferences)" />
+    </ItemGroup>
+  </Target>
+
+  <Target Name="IgnoresAccessChecks_BeforeMarkupCompilePass2" BeforeTargets="MarkupCompilePass2ForMainAssembly" >
+    <ItemGroup>
+      <ReferencePath Remove="@(_IACTG_RemovedReferences)" />
+
+      <ReferencePath Include="@(_IACTG_TargetReferences -> %(ReferenceAssembly))" 
+        Condition="'%(_IACTG_TargetReferences.ReferenceAssembly)' != '' AND '$(_IACTG_UseReferenceAssemblies)' == 'true'" />
+      <ReferencePath Include="@(_IACTG_TargetReferences)" />
     </ItemGroup>
   </Target>
 
