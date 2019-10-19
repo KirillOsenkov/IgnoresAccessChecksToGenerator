@@ -22,6 +22,12 @@ namespace IgnoresAccessChecksToGenerator.Tasks
         [Required]
         public string AssemblyNames { get; set; }
 
+        [Required]
+        public string OutputPath { get; set; }
+
+        [Required]
+        public bool UseReferenceAssemblies { get; set; }
+
         [Output]
         public ITaskItem[] TargetReferences { get; set; }
 
@@ -44,7 +50,7 @@ namespace IgnoresAccessChecksToGenerator.Tasks
                 return true;
             }
 
-            var targetPath = Path.Combine(_sourceDir, "obj", "GeneratedPublicizedAssemblies");
+            var targetPath = Path.Combine(OutputPath, "GeneratedPublicizedAssemblies");
             Directory.CreateDirectory(targetPath);
 
             GenerateAttributes(targetPath, assemblyNames);
@@ -58,17 +64,20 @@ namespace IgnoresAccessChecksToGenerator.Tasks
             var targetReferences = new List<ITaskItem>();
             var removedReferences = new List<ITaskItem>();
 
+            const string ReferenceAssemblyMetadataName = "ReferenceAssembly";
+
             foreach (var assembly in SourceReferences)
             {
-                var assemblyPath = GetFullFilePath(assembly.ItemSpec);
+                var referenceAssembly = UseReferenceAssemblies ? assembly.GetMetadata(ReferenceAssemblyMetadataName) : null;
+                var assemblyPath = GetFullFilePath(referenceAssembly ?? assembly.ItemSpec);
                 var assemblyName = Path.GetFileNameWithoutExtension(assemblyPath);
                 if (assemblyNames.Contains(assemblyName))
                 {
                     // ReSharper disable once AssignNullToNotNullAttribute
                     var targetAssemblyPath = Path.Combine(targetPath, Path.GetFileName(assemblyPath));
 
-                    var targetAsemblyFileInfo = new FileInfo(targetAssemblyPath);
-                    if (!targetAsemblyFileInfo.Exists || targetAsemblyFileInfo.Length == 0)
+                    var targetAssemblyFileInfo = new FileInfo(targetAssemblyPath);
+                    if (!targetAssemblyFileInfo.Exists || targetAssemblyFileInfo.Length == 0)
                     {
                         CreatePublicAssembly(assemblyPath, targetAssemblyPath);
                         Log.LogMessageFromText("Created publicized assembly at " + targetAssemblyPath, MessageImportance.Normal);
@@ -78,7 +87,17 @@ namespace IgnoresAccessChecksToGenerator.Tasks
                         Log.LogMessageFromText("Publicized assembly already exists at " + targetAssemblyPath, MessageImportance.Low);
                     }
 
-                    targetReferences.Add(new TaskItem(targetAssemblyPath));
+                    if (UseReferenceAssemblies)
+                    {
+                        var itemWithReferenceAssembly = new TaskItem(assembly);
+                        assembly.SetMetadata(ReferenceAssemblyMetadataName, targetAssemblyPath);
+                        targetReferences.Add(itemWithReferenceAssembly);
+                    }
+                    else
+                    {
+                        targetReferences.Add(new TaskItem(targetAssemblyPath));
+                    }
+
                     removedReferences.Add(assembly);
                 }
             }
